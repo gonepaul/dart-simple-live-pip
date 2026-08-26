@@ -22,7 +22,7 @@
 
 ### 当前 media-kit 固定版本与 channel API
 
-- `media_kit`、`media_kit_video` 及各平台 `media_kit_libs_*` 当前固定到 `gonepaul/media-kit` 提交 `71814170317b1c15e5754faad75b310af05809e7`，不使用浮动分支。
+- `media_kit`、`media_kit_video` 及各平台 `media_kit_libs_*` 当前固定到 `gonepaul/media-kit` 提交 `576a27fbe1850c787262262a2ea578538712951b`，不使用浮动分支。
 - Dart 使用 method channel `com.alexmercerind/media_kit_video`，调用 `VideoOutputManager.PiPIsAvailable`、`VideoOutputManager.PiPStart`、`VideoOutputManager.PiPStop`；三个方法均传递 `{handle: <media-kit player handle 字符串>}`。
 - PiP 状态通过 event channel `com.alexmercerind/media_kit_video/pip_events` 返回，事件包含对应的 `handle` 和 `state`；当前 Dart 状态集合为 `unavailable`、`inactive`、`starting`、`active`、`stopping`、`failed`。
 - 当前应用层实现仅支持 iOS 默认 MPV/media-kit 路径；MDK 不声明原生 PiP 能力，Android 继续使用既有 `floating` 路径，桌面行为不变。

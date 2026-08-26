@@ -137,7 +137,7 @@ void main() {
     });
 
     test('maps a native method error to failed', () async {
-      transport.errors['VideoOutputManager.PiPStart'] = const PlatformException(
+      transport.errors['VideoOutputManager.PiPStart'] = PlatformException(
         code: 'pip_not_available',
         message: 'Picture in Picture is not currently available.',
       );

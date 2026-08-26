@@ -36,6 +36,9 @@ jobs:
             - name: Validate iOS PiP audio session
               run: scripts/check_ios_pip_audio_session.sh
 
+            - name: Validate iOS PiP background playback
+              run: scripts/check_ios_pip_background_playback.sh
+
             - name: Build unsigned iOS application
               run: flutter build ios --release --no-codesign
 

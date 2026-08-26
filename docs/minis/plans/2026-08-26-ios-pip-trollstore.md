@@ -207,6 +207,14 @@ v11 已在 `Info.plist` 声明 `UIBackgroundModes = audio`，但应用启动时�
 
 `scripts/check_ios_pip_audio_session.sh` 在 Linux 或 macOS 上静态验证 background audio 声明、category、mode、激活以及两条恢复路径；GitHub Actions 在 iOS build 前运行该脚本。这个检查只能防止配置被遗漏，macOS build artifact 才能证明 Swift 可编译。运行时测试必须使用 TrollStore 安装的后续 artifact，与 v12 保持相同直播源和设置，对比前台播放、按 Home 自动进入后台 PiP、返回应用、一次可恢复音频中断以及随后再次进入 PiP；只有用户确认后才能判定此根因修复了真机问题。media-services reset 的代码路径由静态检查覆盖，在能可靠触发系统 reset 的真机环境出现之前不声称完成运行时验证。
 
+### v13 后台供帧主线程依赖修复
+
+Claude Opus 4.6 Thinking 在 RN Antigravity 中独立审计后指出：后台单独 PiP 消失而进程仍存活，最符合“音频线程保活、视频供帧链被主队列依赖阻断”。原实现中 iOS `TextureSW` 的 mpv update callback、PiP forced render pump、Worker 到 PiP frame enqueue，以及 Flutter texture 通知都直接或同步依赖 main queue；前台 App + PiP 时 main queue 正常，所以不消失，完全后台后则可能停止产生新帧。App 的 `Video` widget 还可能在用户开启自动暂停设置时，于 native PiP 启动后再次暂停 mpv。
+
+v13 将 iOS 软件渲染 callback 直接送入串行 Worker，forced pump 移到独立串行队列，Worker 通过初始化后不变的 frame receiver 直接送入 renderer queue，不再读取 main-owned PiP controller。UIKit 和 AVPictureInPictureController 生命周期继续严格留在 main；Flutter resize/frame 通知改为异步且 frame notification 最多积压一个。macOS 保留原 callback 行为。App 侧在 iOS 固定禁用 `Video.pauseUponEnteringBackgroundMode`，防止 Flutter lifecycle 与 native PiP 播放状态竞争；Android/desktop 仍尊重原设置。
+
+本版保持正常 decoder-driven 源帧率、200ms forced fallback、100ms heartbeat、1x1 source layer、AVAudioSession 和 CVPixelBuffer ownership 不变。静态检查覆盖 iOS callback 绕过 main、dedicated pump queue、自死锁保护、write-once frame receiver、Worker 不读取 `pipController`、Flutter 通知合并，以及 iOS App 不自动暂停。真机验收要求后台单独 PiP 连续至少 10 分钟，并确认画面保持流畅、声音连续、返回前台及二次进入 PiP 均正常。
+
 计划文件：
 
 - 修改 `ios/Runner/LivePip/LivePipController.swift`：自动启动、delegate 回调、restore completion、错误收敛。
@@ -227,6 +235,7 @@ flutter test
 scripts/verify_ios_trollstore_baseline.sh
 scripts/verify_ios_pip_native.sh
 scripts/check_ios_pip_audio_session.sh
+scripts/check_ios_pip_background_playback.sh
 flutter build ios --release --no-codesign
 git diff --check
 ```

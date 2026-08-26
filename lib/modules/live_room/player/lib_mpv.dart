@@ -135,11 +135,17 @@ class LibMPV extends BasePlayer {
     }
     final roomController = Get.find<LiveRoomController>();
     final settings = AppSettingsController.instance;
+    // On iOS, never let the Video widget auto-pause on background.
+    // When PiP is active, the widget's pause() would stop mpv's
+    // decoders and kill the PiP frame pipeline.  PiP manages
+    // playback state through native AVKit delegate callbacks.
+    final autoPauseOnBackground =
+        Platform.isIOS ? false : settings.playerAutoPause.value;
     return Video(
       key: key,
       controller: _controller!,
-      pauseUponEnteringBackgroundMode: settings.playerAutoPause.value,
-      resumeUponEnteringForegroundMode: settings.playerAutoPause.value,
+      pauseUponEnteringBackgroundMode: autoPauseOnBackground,
+      resumeUponEnteringForegroundMode: autoPauseOnBackground,
       controls: (state) {
         return playerControls(state.context, roomController);
       },

@@ -1,0 +1,67 @@
+name: Build iOS TrollStore IPA baseline
+
+on:
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ios-trollstore-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    build-ios-trollstore:
+        name: Build iOS TrollStore IPA
+        runs-on: macos-26
+        timeout-minutes: 60
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v6
+
+            - name: Read Flutter version
+              run: echo "FLUTTER_VERSION=$(jq -r '.flutter' .fvmrc)" >> "$GITHUB_ENV"
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  channel: stable
+                  flutter-version: ${{ env.FLUTTER_VERSION }}
+                  cache: true
+
+            - name: Install project dependencies
+              run: dart run scripts/prebuild.dart ios
+
+            - name: Build unsigned iOS application
+              run: flutter build ios --release --no-codesign
+
+            - name: Package ad-hoc TrollStore IPA
+              run: |
+                  VERSION=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml)
+                  IPA_PATH="dist/Simple-Live-iOS-TrollStore-${VERSION}-${GITHUB_RUN_NUMBER}.ipa"
+                  PACKAGE_ARGS=(build/ios/iphoneos/Runner.app "$IPA_PATH")
+                  if [[ -f ios/Runner/Runner.entitlements ]]; then
+                    PACKAGE_ARGS+=(--entitlements ios/Runner/Runner.entitlements)
+                  fi
+                  scripts/package_ios_trollstore.sh "${PACKAGE_ARGS[@]}"
+
+            - name: Verify IPA archive
+              run: |
+                  IPA_PATH=$(find dist -maxdepth 1 -name '*TrollStore*.ipa' -print -quit)
+                  test -n "$IPA_PATH"
+                  unzip -t "$IPA_PATH"
+                  VERIFY_DIR=$(mktemp -d)
+                  trap 'rm -rf "$VERIFY_DIR"' EXIT
+                  unzip -q "$IPA_PATH" -d "$VERIFY_DIR"
+                  PACKAGED_APP=$(find "$VERIFY_DIR/Payload" -maxdepth 1 -name '*.app' -print -quit)
+                  test -n "$PACKAGED_APP"
+                  codesign --verify --strict --verbose=2 "$PACKAGED_APP"
+
+            - name: Upload TrollStore IPA
+              uses: actions/upload-artifact@v6
+              with:
+                  name: Simple-Live-iOS-TrollStore-${{ github.run_number }}
+                  path: dist/*TrollStore*.ipa
+                  if-no-files-found: error
+                  retention-days: 14

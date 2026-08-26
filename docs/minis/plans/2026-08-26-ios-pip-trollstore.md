@@ -22,8 +22,8 @@
 
 ### 当前 media-kit 固定版本与 channel API
 
-- `media_kit`、`media_kit_video` 及各平台 `media_kit_libs_*` 当前固定到 `gonepaul/media-kit` 提交 `f7f0bdb9a80af386ec4b4487c14b24cbe8334754`，不使用浮动分支。
-- Dart 使用 method channel `com.alexmercerind/media_kit_video`，调用 `VideoOutputManager.PiPIsAvailable`、`VideoOutputManager.PiPStart`、`VideoOutputManager.PiPStop`；三个方法均传递 `{handle: <media-kit player handle 字符串>}`。
+- `media_kit`、`media_kit_video` 及各平台 `media_kit_libs_*` 当前固定到 `gonepaul/media-kit` 提交 `a2a3e0e6457668bc74f7f1d5b057e094e4a68092`，不使用浮动分支。
+- Dart 使用 method channel `com.alexmercerind/media_kit_video`，保留 `VideoOutputManager.PiPIsAvailable`、`VideoOutputManager.PiPStart`、`VideoOutputManager.PiPStop` sample-buffer 控制面，并新增 `VideoOutputManager.PiPPrepareHls` 与 `VideoOutputManager.PiPClearHls` HLS 路由。所有方法均传递 `{handle: <media-kit player handle 字符串>}`；prepare 另外传递原始直播 URL 与 HTTP headers。
 - PiP 状态通过 event channel `com.alexmercerind/media_kit_video/pip_events` 返回，事件包含对应的 `handle` 和 `state`；当前 Dart 状态集合为 `unavailable`、`inactive`、`starting`、`active`、`stopping`、`failed`。
 - 当前应用层实现仅支持 iOS 默认 MPV/media-kit 路径；MDK 不声明原生 PiP 能力，Android 继续使用既有 `floating` 路径，桌面行为不变。
 
@@ -214,6 +214,26 @@ Claude Opus 4.6 Thinking 在 RN Antigravity 中独立审计后指出：后台单
 v13 将 iOS 软件渲染 callback 直接送入串行 Worker，forced pump 移到独立串行队列，Worker 通过初始化后不变的 frame receiver 直接送入 renderer queue，不再读取 main-owned PiP controller。UIKit 和 AVPictureInPictureController 生命周期继续严格留在 main；Flutter resize/frame 通知改为异步且 frame notification 最多积压一个。macOS 保留原 callback 行为。App 侧在 iOS 固定禁用 `Video.pauseUponEnteringBackgroundMode`，防止 Flutter lifecycle 与 native PiP 播放状态竞争；Android/desktop 仍尊重原设置。
 
 本版保持正常 decoder-driven 源帧率、200ms forced fallback、100ms heartbeat、1x1 source layer、AVAudioSession 和 CVPixelBuffer ownership 不变。静态检查覆盖 iOS callback 绕过 main、dedicated pump queue、自死锁保护、write-once frame receiver、Worker 不读取 `pipController`、Flutter 通知合并，以及 iOS App 不自动暂停。真机验收要求后台单独 PiP 连续至少 10 分钟，并确认画面保持流畅、声音连续、返回前台及二次进入 PiP 均正常。
+
+### HLS 原生 PiP 路由接入
+
+在 iOS 默认 MPV/media-kit 路径中，前台播放仍由既有 `player.open(Media(...))` 完成。Dart 在 open 前只为 PiP 选择输出路由：URL path 以大小写不敏感的 `.m3u8` 结尾，或 path 任意位置包含 `.m3u8` 时，调用 `VideoOutputManager.PiPPrepareHls` 并原样传递 URL 与请求 headers；其他源调用 `VideoOutputManager.PiPClearHls`，继续使用既有 sample-buffer 路径。query 与 fragment 不参与分类；只接受绝对 HTTP(S) URL，URI 解析失败、相对路径和 file URL 都回退 sample-buffer。
+
+每次 room/source replacement 在停止旧 mpv source 前先 clear HLS route，HLS 新源随后在 mpv open 前 prepare；显式 stop、播放器 dispose 与重新 init 同样 clear。prepare/clear 的 channel 失败只记录日志，不阻断或替代前台 mpv 的 stop/open/dispose 行为；service dispose 后两者均为安全 no-op。现有六个 sample-buffer service 状态及 `PiPStart`/`PiPStop` 行为不变。
+
+纯 Dart 测试覆盖 query string、大小写、path 内嵌 `.m3u8`、FLV、query-only marker 与 malformed URL；service fake 测试固定 method 名、字符串 handle、URL 和 headers，并验证 dispose 后 no-op。iOS workflow 在 build 前运行这两组测试。该覆盖只验证 Dart 路由和 channel 参数；仍需成功的 macOS artifact 才能声称 iOS 可构建，并需用户用 TrollStore 安装后的真机结果才能确认 HLS PiP 运行正确。
+
+本路由任务新增 `HlsPlayerPiPController.swift`、Dart source classifier 及对应测试；修改 native manager/plugin/channel、共享 PiP coordinator、`ios_media_kit_pip_service.dart`、`lib_mpv.dart`、service fake tests 与 iOS workflow。MPV 前台播放参数、MDK、Android 和桌面实现保持不变。
+
+本路由任务的 Linux/macOS Dart 验证命令为：
+
+```bash
+dart format --output=none --set-exit-if-changed lib test
+flutter analyze
+flutter test test/modules/live_room/player/ios_media_kit_pip_source_route_test.dart
+flutter test test/services/ios_media_kit_pip_service_test.dart
+git diff --check
+```
 
 计划文件：
 

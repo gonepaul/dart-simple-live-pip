@@ -65,6 +65,75 @@ void main() {
       expect(service.state, IosMediaKitPipState.active);
     });
 
+    test('prepares and clears the native HLS route with source metadata',
+        () async {
+      await service.prepareHls(
+        'https://example.com/live/channel.m3u8?token=abc',
+        const <String, String>{
+          'Referer': 'https://example.com/',
+          'User-Agent': 'Simple Live',
+        },
+      );
+      await service.clearHls();
+
+      expect(transport.invocations, hasLength(2));
+      expect(
+        transport.invocations[0].method,
+        'VideoOutputManager.PiPPrepareHls',
+      );
+      expect(transport.invocations[0].arguments, <String, Object?>{
+        'handle': '42',
+        'url': 'https://example.com/live/channel.m3u8?token=abc',
+        'headers': const <String, String>{
+          'Referer': 'https://example.com/',
+          'User-Agent': 'Simple Live',
+        },
+      });
+      expect(
+        transport.invocations[1].method,
+        'VideoOutputManager.PiPClearHls',
+      );
+      expect(
+        transport.invocations[1].arguments,
+        const <String, Object?>{'handle': '42'},
+      );
+    });
+
+    test('retries HLS preparation until native VideoOutput exists', () async {
+      transport.transientErrors['VideoOutputManager.PiPPrepareHls'] = <Object>[
+        PlatformException(code: 'unknown_handle'),
+        PlatformException(code: 'unknown_handle'),
+      ];
+
+      await service.prepareHls(
+        'https://example.com/live/channel.m3u8',
+        const <String, String>{'Referer': 'https://example.com/'},
+      );
+
+      expect(
+        transport.invocations
+            .where(
+              (invocation) =>
+                  invocation.method == 'VideoOutputManager.PiPPrepareHls',
+            )
+            .length,
+        3,
+      );
+    });
+
+    test('HLS route methods safely no-op after disposal', () async {
+      await service.dispose();
+      final invocationCount = transport.invocations.length;
+
+      await service.prepareHls(
+        'https://example.com/live/channel.m3u8',
+        const <String, String>{'X-Test-Header': 'ignored'},
+      );
+      await service.clearHls();
+
+      expect(transport.invocations, hasLength(invocationCount));
+    });
+
     test('passes a string handle and makes start stop and dispose idempotent',
         () async {
       transport.responses['VideoOutputManager.PiPIsAvailable'] = true;
@@ -157,7 +226,7 @@ final class _Invocation {
   final Map<String, Object?> arguments;
 }
 
-final class _FakePipTransport implements IosMediaKitPipTransport {
+final class _FakePipTransport extends IosMediaKitPipTransport {
   _FakePipTransport() {
     _events = StreamController<Object?>.broadcast(
       onCancel: () => cancelCount += 1,
@@ -168,6 +237,7 @@ final class _FakePipTransport implements IosMediaKitPipTransport {
   final List<_Invocation> invocations = <_Invocation>[];
   final Map<String, Object?> responses = <String, Object?>{};
   final Map<String, Object> errors = <String, Object>{};
+  final Map<String, List<Object>> transientErrors = <String, List<Object>>{};
   int cancelCount = 0;
 
   @override
@@ -179,6 +249,10 @@ final class _FakePipTransport implements IosMediaKitPipTransport {
     Map<String, Object?> arguments,
   ) async {
     invocations.add(_Invocation(method, arguments));
+    final queuedErrors = transientErrors[method];
+    if (queuedErrors != null && queuedErrors.isNotEmpty) {
+      throw queuedErrors.removeAt(0);
+    }
     final error = errors[method];
     if (error != null) {
       throw error;

@@ -10,6 +10,7 @@ import 'package:simple_live_app/app/controller/app_settings_controller.dart';
 import 'package:simple_live_app/app/log.dart';
 import 'package:simple_live_app/modules/live_room/live_room_controller.dart';
 import 'package:simple_live_app/modules/live_room/player/base_player.dart';
+import 'package:simple_live_app/modules/live_room/player/ios_media_kit_pip_source_route.dart';
 import 'package:simple_live_app/modules/live_room/player/player_controls.dart';
 import 'package:simple_live_app/services/ios_media_kit_pip_service.dart';
 
@@ -173,11 +174,22 @@ class LibMPV extends BasePlayer {
   }) async {
     final player = _player;
     if (player == null) return;
+    await _clearHlsPipRoute();
     _resetPipVideoSize();
     await player.stop();
 
     lastState = lastState.copyWith(buffering: true);
     _stateController.add(lastState);
+
+    if (Platform.isIOS &&
+        classifyIosMediaKitPipSource(url) ==
+            IosMediaKitPipSourceRoute.hls) {
+      try {
+        await _pipService?.prepareHls(url, headers);
+      } catch (error, stackTrace) {
+        SimpleLiveLogger().e(error, stackTrace: stackTrace);
+      }
+    }
 
     await player.open(mpv.Media(url, httpHeaders: headers), play: play);
   }
@@ -205,6 +217,7 @@ class LibMPV extends BasePlayer {
 
   @override
   Future<void> stop() async {
+    await _clearHlsPipRoute();
     final player = _player;
     if (player == null) return;
     await player.stop();
@@ -228,7 +241,7 @@ class LibMPV extends BasePlayer {
     // asynchronous isPictureInPicturePossible propagation instead of failing
     // and consuming the only automatic background request.
     for (var attempt = 0; attempt < 10; attempt++) {
-      if (_hasValidVideoSize && await pipService.isAvailable()) {
+      if (await pipService.isAvailable()) {
         return true;
       }
       await Future<void>.delayed(const Duration(milliseconds: 150));
@@ -238,9 +251,8 @@ class LibMPV extends BasePlayer {
 
   @override
   Future<bool> startPip() async {
-    if (!_hasValidVideoSize) {
-      return false;
-    }
+    // Native availability already selects HLS AVPlayer or sample-buffer PiP.
+    // Do not gate a ready HLS route on mpv texture dimensions.
     return await _pipService?.start() ?? false;
   }
 
@@ -380,8 +392,17 @@ class LibMPV extends BasePlayer {
   Future<void> _disposePipService() async {
     await _pipStateSubscription?.cancel();
     _pipStateSubscription = null;
+    await _clearHlsPipRoute();
     await _pipService?.dispose();
     _pipService = null;
+  }
+
+  Future<void> _clearHlsPipRoute() async {
+    try {
+      await _pipService?.clearHls();
+    } catch (error, stackTrace) {
+      SimpleLiveLogger().e(error, stackTrace: stackTrace);
+    }
   }
 
   void _resetPipVideoSize() {

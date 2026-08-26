@@ -11,17 +11,41 @@ enum IosMediaKitPipState {
   failed,
 }
 
-abstract interface class IosMediaKitPipTransport {
+abstract class IosMediaKitPipTransport {
+  const IosMediaKitPipTransport();
+
   Stream<Object?> get events;
 
   Future<T?> invokeMethod<T>(
     String method,
     Map<String, Object?> arguments,
   );
+
+  Future<void> prepareHls({
+    required String handle,
+    required String url,
+    required Map<String, String> headers,
+  }) {
+    return invokeMethod<void>(
+      'VideoOutputManager.PiPPrepareHls',
+      <String, Object?>{
+        'handle': handle,
+        'url': url,
+        'headers': headers,
+      },
+    );
+  }
+
+  Future<void> clearHls({required String handle}) {
+    return invokeMethod<void>(
+      'VideoOutputManager.PiPClearHls',
+      <String, Object?>{'handle': handle},
+    );
+  }
 }
 
 final class MethodChannelIosMediaKitPipTransport
-    implements IosMediaKitPipTransport {
+    extends IosMediaKitPipTransport {
   static const MethodChannel _methodChannel = MethodChannel(
     'com.alexmercerind/media_kit_video',
   );
@@ -61,6 +85,42 @@ final class IosMediaKitPipService {
   Stream<IosMediaKitPipState> get states => _stateController.stream;
 
   Stream<IosMediaKitPipState> get stateStream => states;
+
+  Future<void> prepareHls(
+    String url,
+    Map<String, String>? headers,
+  ) async {
+    if (_disposed) {
+      return;
+    }
+
+    final copiedHeaders = Map<String, String>.from(
+      headers ?? const <String, String>{},
+    );
+    for (var attempt = 0; attempt < 10; attempt++) {
+      try {
+        await _transport.prepareHls(
+          handle: _requiredHandle,
+          url: url,
+          headers: copiedHeaders,
+        );
+        return;
+      } on PlatformException catch (error) {
+        if (error.code != 'unknown_handle' || attempt == 9) {
+          rethrow;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    }
+  }
+
+  Future<void> clearHls() async {
+    if (_disposed || _handle == null) {
+      return;
+    }
+
+    await _transport.clearHls(handle: _requiredHandle);
+  }
 
   Future<void> bind(Future<int> handle) async {
     if (_disposed) {
@@ -198,11 +258,15 @@ final class IosMediaKitPipService {
   }
 
   Map<String, Object?> get _handleArguments {
+    return <String, Object?>{'handle': _requiredHandle};
+  }
+
+  String get _requiredHandle {
     final handle = _handle;
     if (handle == null) {
       throw StateError('bind must complete before invoking PiP methods.');
     }
-    return <String, Object?>{'handle': handle};
+    return handle;
   }
 
   void _handleEvent(Object? event) {

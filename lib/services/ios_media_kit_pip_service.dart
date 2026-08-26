@@ -105,20 +105,40 @@ final class IosMediaKitPipService {
     }
   }
 
-  Future<void> start() async {
-    if (_disposed ||
-        _state == IosMediaKitPipState.starting ||
-        _state == IosMediaKitPipState.active ||
+  Future<bool> start({
+    Duration activationTimeout = const Duration(seconds: 3),
+  }) async {
+    if (_disposed) {
+      return false;
+    }
+    if (_state == IosMediaKitPipState.active) {
+      return true;
+    }
+    if (_state == IosMediaKitPipState.starting ||
         _state == IosMediaKitPipState.stopping) {
-      return;
+      return false;
     }
 
     _updateState(IosMediaKitPipState.starting);
+    final activation = states
+        .firstWhere(
+          (state) =>
+              state == IosMediaKitPipState.active ||
+              state == IosMediaKitPipState.failed ||
+              state == IosMediaKitPipState.inactive,
+        )
+        .timeout(activationTimeout, onTimeout: () => _state);
     try {
       await _transport.invokeMethod<void>(
         'VideoOutputManager.PiPStart',
         _handleArguments,
       );
+      final result = await activation;
+      if (result != IosMediaKitPipState.active &&
+          _state == IosMediaKitPipState.starting) {
+        _updateState(IosMediaKitPipState.failed);
+      }
+      return result == IosMediaKitPipState.active;
     } catch (error) {
       _updateState(IosMediaKitPipState.failed);
       rethrow;

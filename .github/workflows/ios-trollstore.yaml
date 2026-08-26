@@ -39,6 +39,12 @@ jobs:
             - name: Validate iOS PiP background playback
               run: scripts/check_ios_pip_background_playback.sh
 
+            - name: Test iOS PiP lifecycle policies
+              run: >-
+                  flutter test
+                  test/modules/live_room/player/auto_pip_policy_test.dart
+                  test/services/ios_media_kit_pip_service_test.dart
+
             - name: Build unsigned iOS application
               run: flutter build ios --release --no-codesign
 

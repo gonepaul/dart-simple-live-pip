@@ -935,6 +935,9 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
       return;
     }
 
+    // A different room starts a new automatic-PiP eligibility generation.
+    // This also invalidates any late readiness result from the previous room.
+    resetAutoPipOnResumed();
     rxSite.value = site;
     rxRoomId.value = roomId;
 

@@ -220,14 +220,15 @@ class LibMPV extends BasePlayer {
   @override
   Future<bool> isPipAvailable() async {
     final pipService = _pipService;
-    if (!_hasValidVideoSize || pipService == null) {
+    if (pipService == null) {
       return false;
     }
-    // iOS updates isPictureInPicturePossible asynchronously after the
-    // sample-buffer layer enters the active window hierarchy and receives a
-    // usable frame. Give that readiness propagation a short bounded window.
+    // A room switch temporarily clears the video size before the new stream's
+    // first frame arrives. Wait for both the frame dimensions and AVKit's
+    // asynchronous isPictureInPicturePossible propagation instead of failing
+    // and consuming the only automatic background request.
     for (var attempt = 0; attempt < 10; attempt++) {
-      if (await pipService.isAvailable()) {
+      if (_hasValidVideoSize && await pipService.isAvailable()) {
         return true;
       }
       await Future<void>.delayed(const Duration(milliseconds: 150));
@@ -236,11 +237,11 @@ class LibMPV extends BasePlayer {
   }
 
   @override
-  Future<void> startPip() async {
+  Future<bool> startPip() async {
     if (!_hasValidVideoSize) {
-      return;
+      return false;
     }
-    await _pipService?.start();
+    return await _pipService?.start() ?? false;
   }
 
   @override

@@ -45,7 +45,7 @@ abstract class BasePlayer {
 
   Future<bool> isPipAvailable() async => false;
 
-  Future<void> startPip() async {}
+  Future<bool> startPip() async => false;
 
   Future<void> stopPip() async {}
 

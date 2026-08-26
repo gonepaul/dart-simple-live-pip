@@ -70,13 +70,14 @@ void main() {
       transport.responses['VideoOutputManager.PiPIsAvailable'] = true;
 
       expect(await service.isAvailable(), isTrue);
-      await service.start();
-      await service.start();
-
+      final start = service.start();
+      await _flushEvents();
       transport.emit(const <String, Object?>{
         'handle': '42',
         'state': 'active',
       });
+      expect(await start, isTrue);
+      expect(await service.start(), isTrue);
       await _flushEvents();
 
       await service.stop();
@@ -96,6 +97,43 @@ void main() {
         expect(invocation.arguments, const <String, Object?>{'handle': '42'});
       }
       expect(transport.cancelCount, 1);
+    });
+
+    test('does not report success before native active arrives', () async {
+      transport.responses['VideoOutputManager.PiPIsAvailable'] = true;
+      expect(await service.isAvailable(), isTrue);
+
+      final start = service.start(
+        activationTimeout: const Duration(milliseconds: 10),
+      );
+
+      expect(await start, isFalse);
+      expect(service.state, IosMediaKitPipState.failed);
+
+      final retry = service.start(
+        activationTimeout: const Duration(milliseconds: 10),
+      );
+      await _flushEvents();
+      transport.emit(const <String, Object?>{
+        'handle': '42',
+        'state': 'active',
+      });
+      expect(await retry, isTrue);
+    });
+
+    test('returns false when native reports start failure', () async {
+      transport.responses['VideoOutputManager.PiPIsAvailable'] = true;
+      expect(await service.isAvailable(), isTrue);
+
+      final start = service.start();
+      await _flushEvents();
+      transport.emit(const <String, Object?>{
+        'handle': '42',
+        'state': 'failed',
+      });
+
+      expect(await start, isFalse);
+      expect(service.state, IosMediaKitPipState.failed);
     });
 
     test('maps a native method error to failed', () async {

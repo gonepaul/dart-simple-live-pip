@@ -432,19 +432,33 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
   bool _controlsStateBeforePip = false;
 
   Future<void> requestAutoPipOnBackground() async {
-    final shouldRequest = _autoPipBackgroundPolicy.tryLatchRequest(
-      AutoPipEligibility(
-        settingEnabled: AppSettingsController.instance.iosAutoPip.value,
-        isIos: Platform.isIOS,
-        hasValidLive: hasValidLiveForAutoPip,
-        supportsNativePip: player.supportsNativePip,
-      ),
+    final eligibility = AutoPipEligibility(
+      settingEnabled: AppSettingsController.instance.iosAutoPip.value,
+      isIos: Platform.isIOS,
+      hasValidLive: hasValidLiveForAutoPip,
+      supportsNativePip: player.supportsNativePip,
     );
-    if (!shouldRequest) {
+    final request = _autoPipBackgroundPolicy.tryBeginRequest(eligibility);
+    if (request == null) {
       return;
     }
 
-    await _enableIosNativePip(showFeedback: false);
+    bool requestIsCurrent() =>
+        _autoPipBackgroundPolicy.isCurrent(request);
+    var succeeded = await _enableIosNativePip(
+      showFeedback: false,
+      canContinue: requestIsCurrent,
+    );
+    while (
+        _autoPipBackgroundPolicy.completeRequest(
+          request,
+          succeeded: succeeded,
+        )) {
+      succeeded = await _enableIosNativePip(
+        showFeedback: false,
+        canContinue: requestIsCurrent,
+      );
+    }
   }
 
   void resetAutoPipOnResumed() {
@@ -510,7 +524,13 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
     );
   }
 
-  Future<void> _enableIosNativePip({bool showFeedback = true}) async {
+  Future<bool> _enableIosNativePip({
+    bool showFeedback = true,
+    bool Function()? canContinue,
+  }) async {
+    if (canContinue != null && !canContinue()) {
+      return false;
+    }
     if (!player.supportsNativePip) {
       SimpleLiveLogger().w(
         "Native PiP is not supported by the current player",
@@ -518,7 +538,7 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
       if (showFeedback) {
         SmartDialog.showToast("设备不支持小窗播放");
       }
-      return;
+      return false;
     }
 
     try {
@@ -527,15 +547,19 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
         if (showFeedback) {
           SmartDialog.showToast("画中画尚未就绪，请稍后重试");
         }
-        return;
+        return false;
       }
-      await player.startPip();
+      if (canContinue != null && !canContinue()) {
+        return false;
+      }
+      return await player.startPip();
     } catch (error) {
       _restorePipUi();
       SimpleLiveLogger().e(error);
       if (showFeedback) {
         SmartDialog.showToast("小窗播放启动失败");
       }
+      return false;
     }
   }
 

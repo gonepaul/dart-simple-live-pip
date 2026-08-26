@@ -199,6 +199,14 @@ git diff --check
 - 纯 Dart 策略测试覆盖设置、平台、直播有效性、原生能力以及 `inactive + paused` 去重和 `resumed` 后重新允许请求。
 - 本任务不新增或宣称完成原生 restore completion handler、系统恢复 UI、额外 background mode、macOS 构建或 TrollStore 真机验证；这些仍属于后续原生实现和设备验收范围。
 
+### v12 后台 PiP 根因与单变量验证范围
+
+v11 已在 `Info.plist` 声明 `UIBackgroundModes = audio`，但应用启动时没有把共享 `AVAudioSession` 配置为 `.playback` / `.moviePlayback` 并激活。background mode 声明本身不会建立可持续的播放音频会话；缺少这个运行时条件是 v12 进入后台后 PiP 无法持续的根因。
+
+本次修复只改变应用层音频会话这一项变量：`AppDelegate` 在启动时配置并激活共享会话，在带 `shouldResume` 的音频中断结束后重新配置和激活，并在 `mediaServicesWereResetNotification` 后重建同一配置。通知 observer 由 `AppDelegate` 持有并在释放时移除；配置或激活失败只记录日志，不使应用崩溃。media-kit 引用和 PiP 帧 cadence 均保持不变。
+
+`scripts/check_ios_pip_audio_session.sh` 在 Linux 或 macOS 上静态验证 background audio 声明、category、mode、激活以及两条恢复路径；GitHub Actions 在 iOS build 前运行该脚本。这个检查只能防止配置被遗漏，macOS build artifact 才能证明 Swift 可编译。运行时测试必须使用 TrollStore 安装的后续 artifact，与 v12 保持相同直播源和设置，对比前台播放、按 Home 自动进入后台 PiP、返回应用、一次可恢复音频中断以及随后再次进入 PiP；只有用户确认后才能判定此根因修复了真机问题。media-services reset 的代码路径由静态检查覆盖，在能可靠触发系统 reset 的真机环境出现之前不声称完成运行时验证。
+
 计划文件：
 
 - 修改 `ios/Runner/LivePip/LivePipController.swift`：自动启动、delegate 回调、restore completion、错误收敛。
@@ -218,6 +226,7 @@ flutter analyze
 flutter test
 scripts/verify_ios_trollstore_baseline.sh
 scripts/verify_ios_pip_native.sh
+scripts/check_ios_pip_audio_session.sh
 flutter build ios --release --no-codesign
 git diff --check
 ```

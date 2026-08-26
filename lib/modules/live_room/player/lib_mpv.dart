@@ -104,7 +104,13 @@ class LibMPV extends BasePlayer {
       );
     }
 
-    _controller = VideoController(_player!, configuration: config);
+    final iosPipCompatibleConfig = Platform.isIOS
+        ? config.copyWith(enableHardwareAcceleration: false)
+        : config;
+    _controller = VideoController(
+      _player!,
+      configuration: iosPipCompatibleConfig,
+    );
 
     if (Platform.isIOS) {
       final pipService = IosMediaKitPipService();

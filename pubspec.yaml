@@ -85,17 +85,17 @@ dependencies:
     media_kit:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./media_kit
     media_kit_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./media_kit_video
     media_kit_libs_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/universal/media_kit_libs_video
 
     fvp: ^0.35.2
@@ -105,42 +105,42 @@ dependency_overrides:
     media_kit:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./media_kit
     media_kit_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./media_kit_video
     media_kit_libs_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/universal/media_kit_libs_video
     media_kit_libs_linux:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/linux/media_kit_libs_linux
     media_kit_libs_ios_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/ios/media_kit_libs_ios_video
     media_kit_libs_android_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/android/media_kit_libs_android_video
     media_kit_libs_windows_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/windows/media_kit_libs_windows_video
     media_kit_libs_macos_video:
         git:
             url: https://github.com/gonepaul/media-kit.git
-            ref: 20a8e8656650f4fcae19e633b0cf05b853adf1ad
+            ref: 8f8e421819de3d47d6b1c704310eb16314bf006a
             path: ./libs/macos/media_kit_libs_macos_video
 
 dev_dependencies:

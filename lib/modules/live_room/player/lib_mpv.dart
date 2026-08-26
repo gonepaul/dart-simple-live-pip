@@ -211,7 +211,16 @@ class LibMPV extends BasePlayer {
     if (!_hasValidVideoSize || pipService == null) {
       return false;
     }
-    return pipService.isAvailable();
+    // iOS updates isPictureInPicturePossible asynchronously after the
+    // sample-buffer layer enters the active window hierarchy and receives a
+    // usable frame. Give that readiness propagation a short bounded window.
+    for (var attempt = 0; attempt < 10; attempt++) {
+      if (await pipService.isAvailable()) {
+        return true;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    return false;
   }
 
   @override

@@ -525,7 +525,7 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
       if (!await player.isPipAvailable()) {
         SimpleLiveLogger().w("Native PiP is not currently available");
         if (showFeedback) {
-          SmartDialog.showToast("设备不支持小窗播放");
+          SmartDialog.showToast("画中画尚未就绪，请稍后重试");
         }
         return;
       }

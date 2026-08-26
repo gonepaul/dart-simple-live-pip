@@ -57,6 +57,16 @@ class PlaySettingsPage extends GetView<AppSettingsController> {
                     },
                   ),
                 ),
+                if (Platform.isIOS) ...[
+                  AppStyle.divider,
+                  Obx(
+                    () => SettingsSwitch(
+                      title: "退出前台自动画中画",
+                      value: controller.iosAutoPip.value,
+                      onChanged: controller.setIosAutoPip,
+                    ),
+                  ),
+                ],
                 AppStyle.divider,
                 Obx(
                   () => SettingsMenu<int>(

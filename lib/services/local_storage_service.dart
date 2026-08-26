@@ -105,6 +105,9 @@ class LocalStorageService extends GetxService {
   /// 播放器后台自动暂停
   static const String kPlayerAutoPause = "PlayerAutoPause";
 
+  /// iOS 退出前台自动画中画
+  static const String kIosAutoPip = "IosAutoPip";
+
   /// 播放器缓冲区大小
   static const String kPlayerBufferSize = "PlayerBufferSize";
 

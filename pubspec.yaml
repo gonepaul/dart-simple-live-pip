@@ -84,18 +84,18 @@ dependencies:
     # 视频播放
     media_kit:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./media_kit
     media_kit_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./media_kit_video
     media_kit_libs_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/universal/media_kit_libs_video
 
     fvp: ^0.35.2
@@ -104,43 +104,43 @@ dependencies:
 dependency_overrides:
     media_kit:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./media_kit
     media_kit_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./media_kit_video
     media_kit_libs_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/universal/media_kit_libs_video
     media_kit_libs_linux:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/linux/media_kit_libs_linux
     media_kit_libs_ios_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/ios/media_kit_libs_ios_video
     media_kit_libs_android_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/android/media_kit_libs_android_video
     media_kit_libs_windows_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/windows/media_kit_libs_windows_video
     media_kit_libs_macos_video:
         git:
-            url: https://github.com/Predidit/media-kit.git
-            ref: main
+            url: https://github.com/gonepaul/media-kit.git
+            ref: 71814170317b1c15e5754faad75b310af05809e7
             path: ./libs/macos/media_kit_libs_macos_video
 
 dev_dependencies:

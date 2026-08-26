@@ -178,7 +178,7 @@ Widget buildFullControls(BuildContext context, LiveRoomController controller) {
                   ),
                 ),
                 Visibility(
-                  visible: Platform.isAndroid,
+                  visible: Platform.isAndroid || Platform.isIOS,
                   child: IconButton(
                     onPressed: () {
                       controller.enablePIP();

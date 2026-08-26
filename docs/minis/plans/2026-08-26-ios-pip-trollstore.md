@@ -18,7 +18,14 @@
 2. 第二、三阶段的 macOS 编译成功只能证明原生代码可构建，不能证明设备 PiP 正常。
 3. 只有用户在 TrollStore 安装的构建上确认启动、播放、进入/退出 PiP、回前台恢复均正常后，才能称为“PiP 运行正确”。
 
-本次实施仅覆盖第一阶段，不实现 method channel、PiP 控制器或视频帧桥接。
+当前工作树已完成基线之后的部分 PiP 控制与 Dart 生命周期接入，但完成口径仍以上述构建和真机验证为准；当前没有新的 macOS 构建或 TrollStore 真机结果，因此不声称 iOS 构建或 PiP 运行正确。
+
+### 当前 media-kit 固定版本与 channel API
+
+- `media_kit`、`media_kit_video` 及各平台 `media_kit_libs_*` 当前固定到 `gonepaul/media-kit` 提交 `71814170317b1c15e5754faad75b310af05809e7`，不使用浮动分支。
+- Dart 使用 method channel `com.alexmercerind/media_kit_video`，调用 `VideoOutputManager.PiPIsAvailable`、`VideoOutputManager.PiPStart`、`VideoOutputManager.PiPStop`；三个方法均传递 `{handle: <media-kit player handle 字符串>}`。
+- PiP 状态通过 event channel `com.alexmercerind/media_kit_video/pip_events` 返回，事件包含对应的 `handle` 和 `state`；当前 Dart 状态集合为 `unavailable`、`inactive`、`starting`、`active`、`stopping`、`failed`。
+- 当前应用层实现仅支持 iOS 默认 MPV/media-kit 路径；MDK 不声明原生 PiP 能力，Android 继续使用既有 `floating` 路径，桌面行为不变。
 
 ## 总体架构
 
@@ -183,6 +190,14 @@ git diff --check
 ## 阶段四：自动后台 PiP、恢复、错误处理与设备验证
 
 自动策略只在“用户允许 + 正在播放 + 原生能力可用 + 当前不是 PiP”时响应后台事件。系统 restore completion handler 必须且只能调用一次；前台恢复、用户关闭、播放失败和 app 销毁都收敛到同一状态机。进入 PiP 失败不得中断主播放器，连续错误需回传可诊断原因。
+
+### 当前任务 C 实现范围
+
+- 新增默认开启并持久化的 iOS 自动 PiP 设置；开关仅在 iOS 播放设置中显示。
+- `inactive` 与 `paused` 共同触发 Dart 自动 PiP 策略，并以布尔闩锁合并为一次请求；`resumed` 重置闩锁。原有 `paused` 时暂停弹幕/标记后台、`resumed` 时恢复弹幕/清除后台标记的语义保持不变。
+- 自动请求仅在 iOS、设置开启、直播状态有效、播放器已初始化且 `supportsNativePip` 为真时进入现有 media-kit iOS PiP 启动流程；不可用或启动异常只写日志，不显示 toast，也不中断主播放器。
+- 纯 Dart 策略测试覆盖设置、平台、直播有效性、原生能力以及 `inactive + paused` 去重和 `resumed` 后重新允许请求。
+- 本任务不新增或宣称完成原生 restore completion handler、系统恢复 UI、额外 background mode、macOS 构建或 TrollStore 真机验证；这些仍属于后续原生实现和设备验收范围。
 
 计划文件：
 

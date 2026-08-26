@@ -11,6 +11,7 @@ import 'package:simple_live_app/app/log.dart';
 import 'package:simple_live_app/modules/live_room/live_room_controller.dart';
 import 'package:simple_live_app/modules/live_room/player/base_player.dart';
 import 'package:simple_live_app/modules/live_room/player/player_controls.dart';
+import 'package:simple_live_app/services/ios_media_kit_pip_service.dart';
 
 class LibMPV extends BasePlayer {
   static void register() {
@@ -19,20 +20,37 @@ class LibMPV extends BasePlayer {
 
   mpv.Player? _player;
   VideoController? _controller;
+  IosMediaKitPipService? _pipService;
+  StreamSubscription<IosMediaKitPipState>? _pipStateSubscription;
+  bool _hasValidVideoSize = false;
+  int _pipVideoWidth = 0;
+  int _pipVideoHeight = 0;
   final StreamController<PlayerState> _stateController =
       StreamController.broadcast();
+  final StreamController<IosMediaKitPipState> _pipStateController =
+      StreamController<IosMediaKitPipState>.broadcast(sync: true);
 
   @override
   Stream<PlayerState> get stateStream => _stateController.stream;
 
   @override
+  bool get supportsNativePip => Platform.isIOS;
+
+  @override
+  Stream<IosMediaKitPipState> get pipStateStream =>
+      _pipStateController.stream;
+
+  @override
   Future<void> init() async {
     if (_player != null) {
       await cancelPlayerDebugInfoSubscription();
+      await _disposePipService();
       await _player?.dispose();
       _player = null;
       _controller = null;
     }
+
+    _resetPipVideoSize();
 
     register();
 
@@ -88,6 +106,15 @@ class LibMPV extends BasePlayer {
 
     _controller = VideoController(_player!, configuration: config);
 
+    if (Platform.isIOS) {
+      final pipService = IosMediaKitPipService();
+      _pipService = pipService;
+      _pipStateSubscription = pipService.stateStream.listen(
+        _pipStateController.add,
+      );
+      await pipService.bind(_player!.handle);
+    }
+
     setupPlayerDebugInfoSubscription();
   }
 
@@ -118,10 +145,12 @@ class LibMPV extends BasePlayer {
   @override
   Future<void> dispose() async {
     await cancelPlayerDebugInfoSubscription();
+    await _disposePipService();
     await _player?.dispose();
     _player = null;
     _controller = null;
     _stateController.close();
+    _pipStateController.close();
   }
 
   @override
@@ -132,6 +161,7 @@ class LibMPV extends BasePlayer {
   }) async {
     final player = _player;
     if (player == null) return;
+    _resetPipVideoSize();
     await player.stop();
 
     lastState = lastState.copyWith(buffering: true);
@@ -176,6 +206,28 @@ class LibMPV extends BasePlayer {
   }
 
   @override
+  Future<bool> isPipAvailable() async {
+    final pipService = _pipService;
+    if (!_hasValidVideoSize || pipService == null) {
+      return false;
+    }
+    return pipService.isAvailable();
+  }
+
+  @override
+  Future<void> startPip() async {
+    if (!_hasValidVideoSize) {
+      return;
+    }
+    await _pipService?.start();
+  }
+
+  @override
+  Future<void> stopPip() async {
+    await _pipService?.stop();
+  }
+
+  @override
   Future<Uint8List?> snapshot() async {
     final player = _player;
     if (player == null) return null;
@@ -215,6 +267,8 @@ class LibMPV extends BasePlayer {
     await playerWidthSubscription?.cancel();
     playerWidthSubscription = player.stream.width.listen((event) {
       videoWidth = event ?? 0;
+      _pipVideoWidth = videoWidth;
+      _updatePipVideoSizeAvailability();
       final isVertical = videoHeight > 0 && videoWidth > 0
           ? videoHeight > videoWidth
           : null;
@@ -230,6 +284,8 @@ class LibMPV extends BasePlayer {
     await playerHeightSubscription?.cancel();
     playerHeightSubscription = player.stream.height.listen((event) {
       videoHeight = event ?? 0;
+      _pipVideoHeight = videoHeight;
+      _updatePipVideoSizeAvailability();
       final isVertical = videoHeight > 0 && videoWidth > 0
           ? videoHeight > videoWidth
           : null;
@@ -297,5 +353,22 @@ class LibMPV extends BasePlayer {
     await playerAudioParamsSubscription?.cancel();
     await playerPlaylistSubscription?.cancel();
     await playerTracksSubscription?.cancel();
+  }
+
+  Future<void> _disposePipService() async {
+    await _pipStateSubscription?.cancel();
+    _pipStateSubscription = null;
+    await _pipService?.dispose();
+    _pipService = null;
+  }
+
+  void _resetPipVideoSize() {
+    _pipVideoWidth = 0;
+    _pipVideoHeight = 0;
+    _hasValidVideoSize = false;
+  }
+
+  void _updatePipVideoSizeAvailability() {
+    _hasValidVideoSize = _pipVideoWidth > 0 && _pipVideoHeight > 0;
   }
 }

@@ -144,6 +144,11 @@ class AppSettingsController extends GetxController {
       false,
     );
 
+    iosAutoPip.value = LocalStorageService.instance.getValue(
+      LocalStorageService.kIosAutoPip,
+      true,
+    );
+
     playerForceHttps.value = LocalStorageService.instance.getValue(
       LocalStorageService.kPlayerForceHttps,
       false,
@@ -580,6 +585,12 @@ class AppSettingsController extends GetxController {
       LocalStorageService.kPlayerAutoPause,
       e,
     );
+  }
+
+  RxBool iosAutoPip = true.obs;
+  void setIosAutoPip(bool e) {
+    iosAutoPip.value = e;
+    LocalStorageService.instance.setValue(LocalStorageService.kIosAutoPip, e);
   }
 
   var autoFullScreen = false.obs;

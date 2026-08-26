@@ -10,9 +10,12 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
+import 'package:simple_live_app/modules/live_room/player/auto_pip_policy.dart';
 import 'package:simple_live_app/modules/live_room/player/base_player.dart';
 import 'package:simple_live_app/modules/live_room/player/lib_mdk.dart';
 import 'package:simple_live_app/modules/live_room/player/lib_mpv.dart';
+import 'package:simple_live_app/modules/live_room/player/pip_route.dart';
+import 'package:simple_live_app/services/ios_media_kit_pip_service.dart';
 import 'package:volume_controller/volume_controller.dart';
 import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
 import 'package:simple_live_app/app/controller/app_settings_controller.dart';
@@ -198,6 +201,11 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
 
   final pip = Floating();
   StreamSubscription<PiPStatus>? _pipSubscription;
+  StreamSubscription<IosMediaKitPipState>? _nativePipSubscription;
+  final AutoPipBackgroundPolicy _autoPipBackgroundPolicy =
+      AutoPipBackgroundPolicy();
+
+  bool get hasValidLiveForAutoPip => false;
 
   /// 初始化一些系统状态
   Future<void> initSystem() async {
@@ -212,11 +220,17 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
     if (AppSettingsController.instance.autoFullScreen.value) {
       autoFullScreen = true;
     }
+
+    _nativePipSubscription ??= player.pipStateStream.listen(
+      _handleNativePipState,
+    );
   }
 
   /// 释放一些系统状态
   Future resetSystem() async {
     _pipSubscription?.cancel();
+    _nativePipSubscription?.cancel();
+    _autoPipBackgroundPolicy.resetOnResumed();
     //pip.dispose();
     await SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.edgeToEdge,
@@ -413,28 +427,72 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
     }
   }
 
-  /// 开启小窗播放前弹幕状态
-  bool danmakuStateBeforePIP = false;
+  bool _pipUiHidden = false;
+  bool _danmakuStateBeforePip = false;
+  bool _controlsStateBeforePip = false;
 
-  Future enablePIP() async {
-    if (!Platform.isAndroid) {
+  Future<void> requestAutoPipOnBackground() async {
+    final shouldRequest = _autoPipBackgroundPolicy.tryLatchRequest(
+      AutoPipEligibility(
+        settingEnabled: AppSettingsController.instance.iosAutoPip.value,
+        isIos: Platform.isIOS,
+        hasValidLive: hasValidLiveForAutoPip,
+        supportsNativePip: player.supportsNativePip,
+      ),
+    );
+    if (!shouldRequest) {
       return;
     }
+
+    await _enableIosNativePip(showFeedback: false);
+  }
+
+  void resetAutoPipOnResumed() {
+    _autoPipBackgroundPolicy.resetOnResumed();
+  }
+
+  Future<void> enablePIP() async {
+    final route = resolvePipRoute(
+      platform: Platform.isAndroid
+          ? PipPlatform.android
+          : Platform.isIOS
+          ? PipPlatform.ios
+          : PipPlatform.desktop,
+      playerBackend: player is LibMDK
+          ? PipPlayerBackend.mdk
+          : PipPlayerBackend.mpv,
+    );
+
+    switch (route) {
+      case PipRoute.androidFloating:
+        await _enableAndroidPip();
+        return;
+      case PipRoute.iosNative:
+        await _enableIosNativePip();
+        return;
+      case PipRoute.unsupportedPlayer:
+        SmartDialog.showToast("当前播放器不支持小窗播放");
+        return;
+      case PipRoute.unsupportedPlatform:
+        return;
+    }
+  }
+
+  Future<void> _enableAndroidPip() async {
     if (await pip.isPipAvailable == false) {
       SmartDialog.showToast("设备不支持小窗播放");
       return;
     }
-    danmakuStateBeforePIP = showDanmakuState.value;
-    //关闭并清除弹幕
-    if (AppSettingsController.instance.pipHideDanmu.value &&
-        danmakuStateBeforePIP) {
-      showDanmakuState.value = false;
-    }
-    danmakuController?.clear();
-    //关闭控制器
-    showControlsState.value = false;
 
-    //监听事件
+    _pipSubscription ??= pip.pipStatusStream.listen((event) {
+      if (event == PiPStatus.enabled) {
+        _handlePipActive();
+      } else {
+        _restorePipUi();
+      }
+      SimpleLiveLogger().w(event.toString());
+    });
+
     var width = player.lastState.width;
     var height = player.lastState.height;
     Rational ratio = const Rational.landscape();
@@ -450,14 +508,81 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
         aspectRatio: ratio,
       ),
     );
+  }
 
-    _pipSubscription ??= pip.pipStatusStream.listen((event) {
-      if (event == PiPStatus.disabled) {
-        danmakuController?.clear();
-        showDanmakuState.value = danmakuStateBeforePIP;
+  Future<void> _enableIosNativePip({bool showFeedback = true}) async {
+    if (!player.supportsNativePip) {
+      SimpleLiveLogger().w(
+        "Native PiP is not supported by the current player",
+      );
+      if (showFeedback) {
+        SmartDialog.showToast("设备不支持小窗播放");
       }
-      SimpleLiveLogger().w(event.toString());
-    });
+      return;
+    }
+
+    try {
+      if (!await player.isPipAvailable()) {
+        SimpleLiveLogger().w("Native PiP is not currently available");
+        if (showFeedback) {
+          SmartDialog.showToast("设备不支持小窗播放");
+        }
+        return;
+      }
+      await player.startPip();
+    } catch (error) {
+      _restorePipUi();
+      SimpleLiveLogger().e(error);
+      if (showFeedback) {
+        SmartDialog.showToast("小窗播放启动失败");
+      }
+    }
+  }
+
+  void _handleNativePipState(IosMediaKitPipState state) {
+    switch (state) {
+      case IosMediaKitPipState.active:
+        _handlePipActive();
+        break;
+      case IosMediaKitPipState.inactive:
+      case IosMediaKitPipState.failed:
+        _restorePipUi();
+        break;
+      case IosMediaKitPipState.unavailable:
+      case IosMediaKitPipState.starting:
+      case IosMediaKitPipState.stopping:
+        break;
+    }
+    SimpleLiveLogger().w(state.toString());
+  }
+
+  void _handlePipActive() {
+    if (_pipUiHidden) {
+      return;
+    }
+    _pipUiHidden = true;
+    _danmakuStateBeforePip = showDanmakuState.value;
+    _controlsStateBeforePip = showControlsState.value;
+
+    if (AppSettingsController.instance.pipHideDanmu.value &&
+        _danmakuStateBeforePip) {
+      showDanmakuState.value = false;
+    }
+    danmakuController?.clear();
+    showControlsState.value = false;
+  }
+
+  void _restorePipUi() {
+    if (!_pipUiHidden) {
+      return;
+    }
+    _pipUiHidden = false;
+    danmakuController?.clear();
+    showDanmakuState.value = _danmakuStateBeforePip;
+    showControlsState.value = _controlsStateBeforePip;
+    if (_controlsStateBeforePip) {
+      resetHideControlsTimer();
+    }
   }
 }
 
@@ -702,6 +827,7 @@ class PlayerController extends BaseController
   void disposeStream() {
     _stateSubscription?.cancel();
     _pipSubscription?.cancel();
+    _nativePipSubscription?.cancel();
   }
 
   void showDebugInfo() {

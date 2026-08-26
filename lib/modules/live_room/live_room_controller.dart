@@ -47,6 +47,11 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
   var online = 0.obs;
   var followed = false.obs;
   var liveStatus = false.obs;
+
+  @override
+  bool get hasValidLiveForAutoPip =>
+      liveStatus.value && isPlayerInitialized.value;
+
   RxList<LiveSuperChatMessage> superChats = RxList<LiveSuperChatMessage>();
 
   /// 滚动控制
@@ -961,8 +966,13 @@ ${error?.stackTrace}''');
   }
 
   @override
-  Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      unawaited(requestAutoPipOnBackground());
+    }
 
     if (state == AppLifecycleState.paused) {
       SimpleLiveLogger().d("进入后台");
@@ -972,6 +982,7 @@ ${error?.stackTrace}''');
     } else
     //返回前台
     if (state == AppLifecycleState.resumed) {
+      resetAutoPipOnResumed();
       SimpleLiveLogger().d("返回前台");
       danmakuController?.resume();
       isBackground = false;

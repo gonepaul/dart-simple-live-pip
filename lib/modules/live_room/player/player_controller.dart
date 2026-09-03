@@ -21,6 +21,7 @@ import 'package:simple_live_app/app/custom_throttle.dart';
 import 'package:simple_live_app/app/log.dart';
 import 'package:simple_live_app/app/utils.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:simple_live_app/services/ios_pip_service.dart';
 
 mixin PlayerMixin {
   GlobalKey globalPlayerKey = GlobalKey();
@@ -205,6 +206,11 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
       VolumeController.instance.showSystemUI = false;
     }
 
+    // 初始化 iOS PiP 服务
+    if (Platform.isIOS) {
+      IosPipService.instance.init();
+    }
+
     // 开始隐藏计时
     resetHideControlsTimer();
 
@@ -218,6 +224,10 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
   Future resetSystem() async {
     _pipSubscription?.cancel();
     //pip.dispose();
+    // 停止 iOS PiP
+    if (Platform.isIOS) {
+      await IosPipService.instance.stopPip();
+    }
     await SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.edgeToEdge,
       overlays: SystemUiOverlay.values,
@@ -416,7 +426,21 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
   /// 开启小窗播放前弹幕状态
   bool danmakuStateBeforePIP = false;
 
+  /// 当前正在播放的 URL 和 headers（用于 iOS PiP）
+  String? _currentPlayUrl;
+  Map<String, String>? _currentPlayHeaders;
+
+  /// 记录当前播放的 URL 和 headers
+  void setCurrentPlayInfo(String url, {Map<String, String>? headers}) {
+    _currentPlayUrl = url;
+    _currentPlayHeaders = headers;
+  }
+
   Future enablePIP() async {
+    if (Platform.isIOS) {
+      await _enableIOSPiP();
+      return;
+    }
     if (!Platform.isAndroid) {
       return;
     }
@@ -458,6 +482,50 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
       }
       SimpleLiveLogger().w(event.toString());
     });
+  }
+
+  /// iOS 专用 PiP 实现，使用原生 AVPlayer
+  Future<void> _enableIOSPiP() async {
+    final url = _currentPlayUrl;
+    if (url == null || url.isEmpty) {
+      SmartDialog.showToast("没有正在播放的视频");
+      return;
+    }
+
+    if (!IosPipService.isHlsUrl(url)) {
+      SmartDialog.showToast("当前线路不支持小窗播放，请切换 HLS 线路");
+      return;
+    }
+
+    final available = await IosPipService.instance.isPipAvailable();
+    if (!available) {
+      SmartDialog.showToast("设备不支持小窗播放");
+      return;
+    }
+
+    danmakuStateBeforePIP = showDanmakuState.value;
+    if (AppSettingsController.instance.pipHideDanmu.value &&
+        danmakuStateBeforePIP) {
+      showDanmakuState.value = false;
+    }
+    danmakuController?.clear();
+    showControlsState.value = false;
+
+    IosPipService.instance.onStatusChanged = (status) {
+      if (status == 'stopped' || status == 'failed') {
+        danmakuController?.clear();
+        showDanmakuState.value = danmakuStateBeforePIP;
+      }
+    };
+
+    final success = await IosPipService.instance.startPip(
+      url,
+      headers: _currentPlayHeaders,
+    );
+    if (!success) {
+      SmartDialog.showToast("小窗播放启动失败");
+      showDanmakuState.value = danmakuStateBeforePIP;
+    }
   }
 }
 

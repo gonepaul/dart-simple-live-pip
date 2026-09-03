@@ -178,7 +178,7 @@ Widget buildFullControls(BuildContext context, LiveRoomController controller) {
                   ),
                 ),
                 Visibility(
-                  visible: Platform.isAndroid,
+                  visible: Platform.isAndroid || Platform.isIOS,
                   child: IconButton(
                     onPressed: () {
                       controller.enablePIP();
@@ -590,6 +590,20 @@ Widget buildControls(BuildContext context, LiveRoomController controller) {
                   child: IconButton(
                     onPressed: () {
                       controller.enterSmallWindow();
+                    },
+                    icon: SvgPicture.asset(
+                      'assets/icons/icon_scalewindow.svg',
+                      width: 24,
+                      height: 24,
+                    ),
+                  ),
+                ),
+                // iOS PiP 按钮（非全屏模式）
+                Visibility(
+                  visible: Platform.isIOS,
+                  child: IconButton(
+                    onPressed: () {
+                      controller.enablePIP();
                     },
                     icon: SvgPicture.asset(
                       'assets/icons/icon_scalewindow.svg',

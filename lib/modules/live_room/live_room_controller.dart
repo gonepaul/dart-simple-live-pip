@@ -431,6 +431,8 @@ class LiveRoomController extends PlayerController with WidgetsBindingObserver {
     }
 
     await player.loadVideo(playurl, headers: playHeaders);
+    // 记录当前播放信息，用于 iOS PiP
+    setCurrentPlayInfo(playurl, headers: playHeaders);
 
     SimpleLiveLogger().d("播放链接：$playurl");
   }

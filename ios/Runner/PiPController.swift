@@ -170,9 +170,9 @@ class PiPController: NSObject, AVPictureInPictureControllerDelegate {
         pipController = AVPictureInPictureController(playerLayer: playerLayer)
         pipController?.delegate = self
         
-        // On iOS 14.2+, canStartAutomatically
+        // On iOS 14.2+, auto-start PiP when app goes to background
         if #available(iOS 14.2, *) {
-            pipController?.canStartPictureInPictureAutomatically = true
+            pipController?.canStartPictureInPictureAutomaticallyFromInline = true
         }
         
         // Small delay to let the controller initialize

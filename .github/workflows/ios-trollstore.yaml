@@ -38,7 +38,7 @@ jobs:
 
             - name: Package ad-hoc TrollStore IPA
               run: |
-                  VERSION=$(sed -n 's/^version:[[:space:]]*//' pubspec.yaml | head -1)
+                  VERSION=$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -1)
                   IPA_PATH="dist/Simple-Live-iOS-PiP-TrollStore-${VERSION}-${GITHUB_RUN_NUMBER}.ipa"
                   PACKAGE_ARGS=(build/ios/iphoneos/Runner.app "$IPA_PATH")
                   if [[ -f ios/Runner/Runner.entitlements ]]; then

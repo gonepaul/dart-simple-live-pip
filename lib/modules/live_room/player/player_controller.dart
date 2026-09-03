@@ -513,16 +513,21 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
 
     IosPipService.instance.onStatusChanged = (status) {
       if (status == 'stopped' || status == 'failed') {
+        // PiP 结束后恢复应用内播放器。
+        unawaited(player.play());
         danmakuController?.clear();
         showDanmakuState.value = danmakuStateBeforePIP;
       }
     };
 
+    // iOS PiP 由系统 AVPlayer 接管播放，暂停前台 mpv 避免双重音频。
+    await player.pause();
     final success = await IosPipService.instance.startPip(
       url,
       headers: _currentPlayHeaders,
     );
     if (!success) {
+      await player.play();
       SmartDialog.showToast("小窗播放启动失败");
       showDanmakuState.value = danmakuStateBeforePIP;
     }

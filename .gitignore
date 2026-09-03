@@ -58,4 +58,7 @@ local.properties
 # FVM Version Cache
 .fvm/
 
+# Local build artifacts
+dist/
+
 .zed/

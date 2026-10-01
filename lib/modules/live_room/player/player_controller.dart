@@ -514,11 +514,11 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
     IosPipService.instance.onStatusChanged = (status) {
       // stopped: 用户点“还原”回到 App；failed: 启动失败；
       // closed: 用户在桌面关闭了小窗，保持暂停，不在后台出声。
-      if (status == stopped || status == failed) {
+      if (status == 'stopped' || status == 'failed') {
         unawaited(player.play());
         danmakuController?.clear();
         showDanmakuState.value = danmakuStateBeforePIP;
-      } else if (status == closed) {
+      } else if (status == 'closed') {
         danmakuController?.clear();
         showDanmakuState.value = danmakuStateBeforePIP;
       }

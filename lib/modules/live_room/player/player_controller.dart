@@ -525,6 +525,10 @@ mixin PlayerSystemMixin on PlayerMixin, PlayerStateMixin, PlayerDanmakuMixin {
         danmakuController?.clear();
         showDanmakuState.value = danmakuStateBeforePIP;
       } else if (status == 'closed') {
+        final u = _currentPlayUrl;
+        if (u != null && u.isNotEmpty) {
+          unawaited(player.loadVideo(u, headers: _currentPlayHeaders, play: false));
+        }
         danmakuController?.clear();
         showDanmakuState.value = danmakuStateBeforePIP;
       }

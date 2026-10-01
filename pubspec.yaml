@@ -45,7 +45,7 @@ dependencies:
     canvas_danmaku:
         git:
             url: https://github.com/GH4NG/canvas_danmaku.git
-            ref: 994465d9bfca3f39d0b41199d16e7fd93fe97881
+            ref: main
 
     # 系统交互
     package_info_plus: ^8.3.1 # 包信息

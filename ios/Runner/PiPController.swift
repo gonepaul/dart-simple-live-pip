@@ -226,7 +226,25 @@ class PiPController: NSObject, AVPictureInPictureControllerDelegate {
         _ pictureInPictureController: AVPictureInPictureController
     ) {
         isPiPActive = true
+        didRestore = false
         channel?.invokeMethod("onPiPStatusChanged", arguments: "started")
+        // 按 iOS 习惯：PiP 起来后直接回到桌面，不在 App 内留下静止画面。
+        // 使用 UIApplication 的 suspend（TrollStore 版本可用）。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            UIControl().sendAction(NSSelectorFromString("suspend"),
+                                   to: UIApplication.shared, for: nil)
+        }
+    }
+
+    private var didRestore = false
+
+    func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+        didRestore = true
+        channel?.invokeMethod("onPiPStatusChanged", arguments: "restore")
+        completionHandler(true)
     }
     
     func pictureInPictureControllerWillStopPictureInPicture(
@@ -239,7 +257,7 @@ class PiPController: NSObject, AVPictureInPictureControllerDelegate {
         _ pictureInPictureController: AVPictureInPictureController
     ) {
         isPiPActive = false
-        channel?.invokeMethod("onPiPStatusChanged", arguments: "stopped")
+        channel?.invokeMethod("onPiPStatusChanged", arguments: didRestore ? "stopped" : "closed")
         cleanupPiP()
     }
     
